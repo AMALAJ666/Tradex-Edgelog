@@ -29,7 +29,14 @@
         localStorage.setItem(`${key}.recovery.${timestamp}`, raw);
       }
     }
-    localStorage.setItem(key, serialized);
+    try {
+      localStorage.setItem(key, serialized);
+    } catch (error) {
+      if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        throw new Error('Local storage is full, so the journal was not saved. Export a backup, then remove older recovery copies.');
+      }
+      throw error;
+    }
   }
 
   function getGistConfig() {

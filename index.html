@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="js/storage.js" defer></script>
+  <script src="js/screenshots.js" defer></script>
   <script src="js/gist.js" defer></script>
   <script src="js/vault.js" defer></script>
   <script src="js/github.js" defer></script>
@@ -233,7 +234,7 @@
               <div class="notice"><span>i</span><p>Your GitHub token is encrypted with your vault password and stored only on this device. It is never included in journal data, shown after saving, or synced. Your vault password also encrypts the Gist copy across devices.</p></div>
               <form class="settings-form" id="storageForm"><label>GitHub username<input id="githubUsernameInput" type="text" placeholder="your-github-handle" autocomplete="off"></label><label>GitHub personal access token<input id="githubTokenInput" type="password" placeholder="github_pat_... (stored encrypted)" autocomplete="off"></label><label>Private Gist ID<input id="gistIdInput" type="text" placeholder="Optional — a new private Gist is created if blank"></label><div class="form-actions"><button class="primary-button" type="submit">Save connection <span>✓</span></button><button class="outline-button" id="clearTokenButton" type="button">Clear token</button></div></form>
               <div class="gist-actions"><div><p class="eyebrow">Manual synchronization</p><p id="gistLastSynced">Last synchronized: never</p></div><div class="form-actions"><button class="outline-button" id="loadGithubButton" type="button">Load from GitHub</button><button class="outline-button" id="saveGithubButton" type="button">Save to GitHub</button><button class="primary-button" id="syncGithubButton" type="button">Sync now <span>↻</span></button></div></div>
-              <div class="local-backup"><p class="eyebrow">Local backup</p><p>Export a copy before moving to another browser, or restore a previously exported journal.</p><div class="form-actions"><button class="outline-button" id="exportDataButton" type="button">Export JSON</button><button class="outline-button" id="importDataButton" type="button">Import JSON</button><input id="importDataInput" type="file" accept="application/json,.json" hidden></div></div>
+              <div class="local-backup"><p class="eyebrow">Local backup</p><p>Export a copy before moving to another browser, or restore a previously exported journal. Exports include your screenshots; the Gist sync does not.</p><p class="muted-copy" id="storageUsage">Checking local storage usage...</p><div class="form-actions"><button class="outline-button" id="exportDataButton" type="button">Export JSON</button><button class="outline-button" id="importDataButton" type="button">Import JSON</button><input id="importDataInput" type="file" accept="application/json,.json" hidden></div></div>
             </article>
           </div>
         </section>

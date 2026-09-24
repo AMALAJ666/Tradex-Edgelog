@@ -5,6 +5,7 @@ let toastTimer;
 let journalDraft = null;
 let saveStatus = 'saved';
 let syncConflict = null;
+const screenshotUrls = { before: '', after: '' };
 
 const numericTradeFields = new Set(['entry', 'stopLoss', 'takeProfit', 'riskPercent', 'positionSize', 'pnl']);
 let pnlChart;
@@ -363,18 +364,37 @@ function renderTrades() {
   `).join('');
 }
 
+async function renderScreenshots() {
+  await Promise.all(['before', 'after'].map(async (slot) => {
+    const element = document.getElementById(`${slot}Screenshot`);
+    if (!element) return;
+    if (screenshotUrls[slot]) {
+      URL.revokeObjectURL(screenshotUrls[slot]);
+      screenshotUrls[slot] = '';
+    }
+    const value = journalDraft.screenshots[slot];
+    let source = '';
+    if (ScreenshotStore.isLegacyDataUrl(value)) {
+      source = value;
+    } else if (ScreenshotStore.isReference(value)) {
+      const record = await ScreenshotStore.get(value).catch(() => null);
+      if (record?.blob) {
+        source = URL.createObjectURL(record.blob);
+        screenshotUrls[slot] = source;
+      }
+    }
+    element.classList.toggle('has-image', Boolean(source));
+    element.style.backgroundImage = source ? `url("${source}")` : '';
+  }));
+}
+
 function renderJournalFields() {
   document.querySelectorAll('[data-journal-field]').forEach((field) => { field.value = journalDraft[field.dataset.journalField] || ''; });
   document.querySelectorAll('[data-psychology-field]').forEach((field) => { field.value = journalDraft.psychology[field.dataset.psychologyField] ?? ''; });
   document.querySelectorAll('[data-mistake-flag]').forEach((field) => { field.checked = journalDraft.mistakeFlags.includes(field.dataset.mistakeFlag); });
   document.getElementById('confidenceValue').textContent = journalDraft.psychology.confidenceScore || 0;
   document.getElementById('impulseValue').textContent = journalDraft.psychology.impulseScore || 0;
-  ['before', 'after'].forEach((slot) => {
-    const element = document.getElementById(`${slot}Screenshot`);
-    const image = journalDraft.screenshots[slot];
-    element.classList.toggle('has-image', Boolean(image));
-    element.style.backgroundImage = image ? `url("${image}")` : '';
-  });
+  renderScreenshots();
 }
 
 function renderDailySummary() {
@@ -493,47 +513,72 @@ function updateJournalDraft(event) {
   }
 }
 
-function readScreenshot(event) {
+async function readScreenshot(event) {
   const file = event.target.files[0];
   const slot = event.target.dataset.screenshotSlot;
   if (!file || !slot) return;
   if (!file.type.startsWith('image/')) {
     setSaveStatus('failed');
     showToast('Choose an image file for the screenshot.');
+    event.target.value = '';
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    journalDraft.screenshots[slot] = reader.result;
+  try {
+    const previous = journalDraft.screenshots[slot];
+    journalDraft.screenshots[slot] = await ScreenshotStore.put(journalDraft.date, slot, file);
+    if (ScreenshotStore.isReference(previous)) await ScreenshotStore.remove(previous);
     renderJournalFields();
     markJournalDirty();
-  };
-  reader.onerror = () => {
+  } catch (error) {
     setSaveStatus('failed');
-    showToast('The screenshot could not be read.');
-  };
-  reader.readAsDataURL(file);
+    showToast(error.message || 'The screenshot could not be saved.', 'error');
+  } finally {
+    event.target.value = '';
+  }
 }
 
-function exportJournalData() {
-  const data = JournalStore.exportData();
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `ledgerly-journal-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-  showToast('Journal export downloaded.');
+async function exportJournalData() {
+  try {
+    const data = JournalStore.exportData();
+    const stored = await ScreenshotStore.list();
+    data.screenshotBlobs = await Promise.all(stored.map(async (record) => ({
+      id: record.id,
+      journalId: record.journalId,
+      slot: record.slot,
+      mimeType: record.mimeType,
+      dataUrl: await ScreenshotStore.blobToDataUrl(record.blob)
+    })));
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `edgelog-journal-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast(`Journal export downloaded with ${data.screenshotBlobs.length} screenshot(s).`);
+  } catch (error) {
+    showToast(error.message || 'The export could not be created.', 'error');
+  }
+}
+
+async function restoreScreenshotBlobs(blobs) {
+  if (!Array.isArray(blobs)) return;
+  await Promise.all(blobs.map(async (record) => {
+    if (!record?.dataUrl || !ScreenshotStore.isReference(record.id)) return;
+    await ScreenshotStore.putWithId(record.id, record.journalId, record.slot, ScreenshotStore.dataUrlToBlob(record.dataUrl));
+  }));
 }
 
 function importJournalData(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
-      JournalStore.importData(JSON.parse(reader.result));
+      const parsed = JSON.parse(reader.result);
+      const { screenshotBlobs, ...document } = parsed;
+      JournalStore.importData(document);
+      await restoreScreenshotBlobs(screenshotBlobs);
       const journals = JournalStore.getState().journals;
       if (journals.length) {
         activeJournalDate = journals[0].date;
@@ -541,6 +586,7 @@ function importJournalData(event) {
         loadJournalDraft();
       }
       setRoute();
+      renderStorageUsage();
       showToast('Journal data imported and saved locally.');
     } catch (error) {
       showToast(error.message || 'Import failed. Your current journal was not changed.', 'error');
@@ -846,6 +892,58 @@ function setRoute() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function formatBytes(bytes) {
+  if (!bytes) return '0 MB';
+  const megabytes = bytes / (1024 * 1024);
+  if (megabytes >= 1024) return `${(megabytes / 1024).toFixed(2)} GB`;
+  return `${megabytes.toFixed(1)} MB`;
+}
+
+async function renderStorageUsage() {
+  const element = document.getElementById('storageUsage');
+  if (!element) return;
+  const estimate = await ScreenshotStore.estimate();
+  if (!estimate) {
+    element.textContent = 'This browser does not report storage usage.';
+    return;
+  }
+  const percent = estimate.percent < 0.1 && estimate.usage > 0 ? '<0.1' : estimate.percent.toFixed(1);
+  element.textContent = `Used ${formatBytes(estimate.usage)} of an estimated ${formatBytes(estimate.quota)} available (${percent}%).`;
+}
+
+// Moves screenshots saved as base64 inside the journal document into IndexedDB blobs.
+async function migrateLegacyScreenshots() {
+  const journals = JournalStore.getState().journals;
+  const legacy = journals.filter((journal) => Object.values(journal.screenshots || {}).some((value) => ScreenshotStore.isLegacyDataUrl(value)));
+  if (!legacy.length) return;
+  let moved = 0;
+  for (const journal of legacy) {
+    const screenshots = { ...journal.screenshots };
+    for (const slot of Object.keys(screenshots)) {
+      if (!ScreenshotStore.isLegacyDataUrl(screenshots[slot])) continue;
+      try {
+        screenshots[slot] = await ScreenshotStore.put(journal.date, slot, ScreenshotStore.dataUrlToBlob(screenshots[slot]));
+        moved += 1;
+      } catch {
+        return;
+      }
+    }
+    JournalStore.updateJournal(journal.date, { screenshots });
+  }
+  if (moved) showToast(`${moved} screenshot(s) moved into local image storage.`);
+}
+
+async function setupLocalStorageLayer() {
+  try {
+    await ScreenshotStore.requestPersistence();
+    await migrateLegacyScreenshots();
+    await ScreenshotStore.pruneOrphans(JournalStore.getState().journals);
+  } catch {
+    // Image storage is optional; the journal stays usable without it.
+  }
+  renderStorageUsage();
+}
+
 function vaultErrorMessage(error) {
   switch (error && error.code) {
     case 'wrong-username': return 'Username not recognized.';
@@ -1087,6 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAnalytics();
   setupInteractions();
   setupVaultGate();
+  setupLocalStorageLayer();
   renderGistStatus();
   JournalStore.subscribe(() => {
     renderCalendar();
