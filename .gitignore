@@ -1,0 +1,11 @@
+# OS / editor noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+.vscode/
+
+# Local exports / backups
+*.local.json
+ledgerly-*.json

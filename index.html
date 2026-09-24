@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A private, reflective trading journal.">
+  <title>Edgelog | Trading Journal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="js/storage.js" defer></script>
+  <script src="js/gist.js" defer></script>
+  <script src="js/vault.js" defer></script>
+  <script src="js/github.js" defer></script>
+  <script src="js/state.js" defer></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <div class="lock-screen" id="lockScreen" hidden>
+    <div class="lock-card">
+      <div class="lock-brand"><span class="brand-mark">L</span><span>Tradex Edgelog</span></div>
+      <form class="lock-form" id="vaultSetupForm" hidden autocomplete="off">
+        <h1>Create your vault</h1>
+        <p class="lock-subtext">This local password locks the app and encrypts your GitHub token on this device. It is never stored or sent anywhere &mdash; there is no way to recover it, so keep it safe.</p>
+        <label>Username<input id="setupUsername" type="text" autocomplete="off" required></label>
+        <label>Password<input id="setupPassword" type="password" autocomplete="new-password" required></label>
+        <label>Confirm password<input id="setupPasswordConfirm" type="password" autocomplete="new-password" required></label>
+        <p class="lock-error" id="setupError" role="alert" hidden></p>
+        <button class="primary-button" type="submit">Create vault</button>
+      </form>
+      <form class="lock-form" id="vaultLoginForm" hidden autocomplete="off">
+        <h1>Unlock Edgelog</h1>
+        <p class="lock-subtext">Enter your local vault credentials to decrypt this device.</p>
+        <label>Username<input id="loginUsername" type="text" autocomplete="off" required></label>
+        <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+        <p class="lock-error" id="loginError" role="alert" hidden></p>
+        <button class="primary-button" type="submit">Unlock</button>
+      </form>
+    </div>
+  </div>
+  <a class="skip-link" href="#mainContent">Skip to main content</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="#/dashboard" aria-label="Edgelog dashboard">
+        <span class="brand-mark">L</span>
+        <span>Edgelog</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="#/dashboard" class="nav-link" data-route="dashboard"><span class="nav-icon">▦</span>Dashboard</a>
+        <a href="#/journal" class="nav-link" data-route="journal"><span class="nav-icon">□</span>Journal</a>
+        <a href="#/settings" class="nav-link" data-route="settings"><span class="nav-icon">⚙</span>Settings</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sync-indicator"><span></span> Local workspace</div>
+        <p id="sidebarPeriodLabel"></p>
+        <button class="lock-button" id="lockButton" type="button">Lock</button>
+      </div>
+    </aside>
+
+    <main class="main-content" id="mainContent" tabindex="-1">
+      <header class="mobile-header">
+        <a class="brand" href="#/dashboard"><span class="brand-mark">L</span><span>Edgelog</span></a>
+        <button class="icon-button" id="mobileMenuButton" aria-label="Open navigation">☰</button>
+      </header>
+
+      <section class="view" id="dashboardView" data-view="dashboard">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Performance overview</p>
+            <h1 id="dashboardGreeting">Good morning.</h1>
+            <p class="subhead">Your trading performance at a glance.</p>
+          </div>
+          <div class="heading-actions">
+            <a class="primary-button" href="#/journal">Open journal <span>→</span></a>
+          </div>
+        </div>
+
+        <section class="stat-grid" aria-label="Monthly trading statistics">
+          <article class="stat-card accent-green">
+            <p>Net P&amp;L</p>
+            <strong id="totalPnlValue">+$0.00</strong>
+            <span id="totalPnlDetail">Across all journals</span>
+          </article>
+          <article class="stat-card">
+            <p>Win rate</p>
+            <strong id="winRateValue">0.0%</strong>
+            <span id="winRateDetail">0 wins / 0 losses</span>
+          </article>
+          <article class="stat-card">
+            <p>Average P&amp;L</p>
+            <strong id="averagePnlValue">$0.00</strong>
+            <span id="averageRrDetail">Avg R:R —</span>
+          </article>
+          <article class="stat-card">
+            <p>Trades taken</p>
+            <strong id="tradeCountValue">0</strong>
+            <span id="tradeCountDetail">0 breakeven trades</span>
+          </article>
+        </section>
+
+        <section class="dashboard-grid top-grid">
+          <article class="panel calendar-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Activity</p>
+                <h2 id="calendarMonthLabel">September 2026</h2>
+              </div>
+              <div class="calendar-tools"><div class="calendar-legend"><span class="legend-dot gain"></span> Green day <span class="legend-dot loss"></span> Red day</div><button class="icon-button small" id="previousMonthButton" type="button" aria-label="Previous month">‹</button><button class="icon-button small" id="nextMonthButton" type="button" aria-label="Next month">›</button></div>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </article>
+
+          <article class="panel performance-panel">
+            <div class="panel-heading compact-heading">
+              <div>
+                <p class="eyebrow">Equity curve</p>
+                <h2>Cumulative P&amp;L</h2>
+              </div>
+              <span class="chart-value" id="cumulativePnlValue">+$0.00</span>
+            </div>
+            <div class="chart-wrap"><canvas id="pnlChart" aria-label="Cumulative profit and loss chart"></canvas></div>
+          </article>
+        </section>
+
+        <section class="dashboard-grid bottom-grid">
+          <article class="panel strategy-panel">
+            <div class="panel-heading compact-heading">
+              <div><p class="eyebrow">By setup</p><h2>Strategy P&amp;L</h2></div>
+            </div>
+            <div class="strategy-content">
+              <div class="bar-chart-wrap"><canvas id="strategyChart" aria-label="Strategy profit and loss bar chart"></canvas></div>
+              <div class="strategy-list" id="strategyAnalyticsList"></div>
+            </div>
+          </article>
+
+          <article class="panel reflection-panel">
+            <div class="panel-heading compact-heading"><div><p class="eyebrow">Latest</p><h2>One small reflection</h2></div><span class="status-pill" id="reflectionDate" hidden></span></div>
+            <blockquote id="reflectionQuote" class="muted-copy">Your latest reflection will appear here once you save a journal entry.</blockquote>
+            <a href="#/journal" class="text-link">Continue writing <span>→</span></a>
+          </article>
+        </section>
+      </section>
+
+      <section class="view" id="journalView" data-view="journal" hidden>
+        <div class="page-heading journal-heading">
+          <div>
+            <p class="eyebrow">Daily entry</p>
+            <h1 id="journalDateHeading">Thursday, September 24</h1>
+            <p class="subhead">Close the loop between your plan and your execution.</p>
+          </div>
+          <div class="heading-actions"><button class="select-button" id="journalDateControl" type="button">‹ Sep 24, 2026 ›</button><span class="save-status saved" id="saveStatus" role="status">Saved</span><button class="primary-button" id="saveJournalButton" type="button">Save entry <span>✓</span></button></div>
+        </div>
+
+        <section class="daily-summary">
+          <div class="summary-cell"><p>Day P&amp;L</p><strong id="dailyPnlValue" class="positive">+$824.50</strong><span id="dailyPnlDetail">+1.63R</span></div>
+          <div class="summary-cell"><p>Trades</p><strong id="dailyTradeCount">3</strong><span id="dailyTradeDetail">2 wins, 1 loss</span></div>
+          <div class="summary-cell"><p>Best setup</p><strong id="dailyBestSetup">ORB</strong><span id="dailyBestSetupDetail">+2.1R</span></div>
+          <div class="summary-cell"><p>Mindset</p><strong id="dailyMindset">Calm</strong><span id="dailyMindsetDetail">Focused, patient</span></div>
+        </section>
+
+        <section class="journal-layout">
+          <div class="journal-main">
+            <article class="panel journal-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Execution</p><h2>Trade log</h2></div><button class="outline-button" id="addTradeButton" type="button">+ Add trade</button></div>
+              <div class="trade-list" id="tradeList"></div>
+            </article>
+
+            <article class="panel journal-panel prompts-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Review</p><h2>Journal reflections</h2></div><span class="prompt-count">Optional fields</span></div>
+              <div class="prompt-list">
+                <label class="prompt-field"><span>What happened?</span><textarea data-journal-field="whatHappened" placeholder="Capture the session in your own words..."></textarea></label>
+                <label class="prompt-field"><span>What was the market lesson?</span><textarea data-journal-field="marketLesson" placeholder="What did price action teach you?"></textarea></label>
+                <label class="prompt-field"><span>What worked?</span><textarea data-journal-field="whatWorked" placeholder="Name the decisions worth repeating..."></textarea></label>
+                <label class="prompt-field"><span>What failed?</span><textarea data-journal-field="whatFailed" placeholder="Record the process or execution gap..."></textarea></label>
+                <label class="prompt-field"><span>What repeats tomorrow?</span><textarea data-journal-field="whatRepeats" placeholder="Keep the useful behavior specific..."></textarea></label>
+                <label class="prompt-field"><span>Improvement action</span><textarea data-journal-field="improvementAction" placeholder="Write one clear, actionable adjustment..."></textarea></label>
+              </div>
+            </article>
+          </div>
+
+          <aside class="journal-sidebar">
+            <article class="panel sidebar-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Psychology</p><h2>Check-in</h2></div></div>
+              <div class="psychology-fields">
+                <label>Before<textarea data-psychology-field="before" placeholder="How did you arrive at the session?"></textarea></label>
+                <label>During<textarea data-psychology-field="during" placeholder="What did you notice while trading?"></textarea></label>
+                <label>After<textarea data-psychology-field="after" placeholder="How do you feel after the close?"></textarea></label>
+                <label>Confidence <span id="confidenceValue">0</span>/5<input type="range" min="0" max="5" step="1" data-psychology-field="confidenceScore"></label>
+                <label>Impulse <span id="impulseValue">0</span>/5<input type="range" min="0" max="5" step="1" data-psychology-field="impulseScore"></label>
+                <label>Fear / greed interference<select data-psychology-field="fearGreedInterference"><option value="none">None</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option></select></label>
+              </div>
+            </article>
+
+            <article class="panel sidebar-panel mistake-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Pattern check</p><h2>Mistake flags</h2></div><span class="scan-dot"></span></div>
+              <div class="flag-list">
+                <label><input type="checkbox" data-mistake-flag="fomo-entry"> FOMO entry</label>
+                <label><input type="checkbox" data-mistake-flag="early-entry"> Early entry</label>
+                <label><input type="checkbox" data-mistake-flag="moved-stop"> Moved stop loss</label>
+                <label><input type="checkbox" data-mistake-flag="oversized"> Oversized position</label>
+                <label><input type="checkbox" data-mistake-flag="revenge-trade"> Revenge trade</label>
+              </div>
+            </article>
+
+            <article class="panel sidebar-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Visual review</p><h2>Trade screenshots</h2></div></div>
+              <div class="screenshot-grid"><label class="screenshot-placeholder" id="beforeScreenshot"><input type="file" accept="image/*" data-screenshot-slot="before"><span>+</span>Before</label><label class="screenshot-placeholder" id="afterScreenshot"><input type="file" accept="image/*" data-screenshot-slot="after"><span>+</span>After</label></div>
+            </article>
+          </aside>
+        </section>
+      </section>
+
+      <section class="view" id="settingsView" data-view="settings" hidden>
+        <div class="page-heading"><div><p class="eyebrow">Preferences</p><h1>Settings</h1><p class="subhead">Shape your journal around how you trade.</p></div></div>
+        <section class="settings-layout">
+          <div class="settings-nav" aria-label="Settings sections"><button class="settings-tab active" data-settings-tab="strategies">Strategies</button><button class="settings-tab" data-settings-tab="preferences">Journal defaults</button><button class="settings-tab" data-settings-tab="storage">GitHub storage</button></div>
+          <div class="settings-content">
+            <article class="panel settings-section" data-settings-section="strategies">
+              <div class="panel-heading"><div><p class="eyebrow">Your playbook</p><h2>Strategies</h2><p class="muted-copy">Keep the setups you want to measure over time.</p></div><button class="outline-button" id="addStrategyButton" type="button">+ Add strategy</button></div>
+              <div class="strategy-table" id="strategyTable"></div>
+            </article>
+            <article class="panel settings-section" data-settings-section="preferences" hidden>
+              <div class="panel-heading"><div><p class="eyebrow">Your baseline</p><h2>Journal defaults</h2><p class="muted-copy">Set the account context used when reviewing your performance.</p></div></div>
+              <form class="settings-form" id="preferencesForm"><label>Starting account balance<input id="startingBalanceInput" type="number" min="0" step="0.01" placeholder="e.g. 25000" autocomplete="off"></label><label>Default currency<select id="currencyInput"><option value="USD">USD - US Dollar</option><option value="EUR">EUR - Euro</option><option value="GBP">GBP - British Pound</option><option value="JPY">JPY - Japanese Yen</option><option value="INR">INR - Indian Rupee</option><option value="AUD">AUD - Australian Dollar</option><option value="CAD">CAD - Canadian Dollar</option></select></label><label>Monthly profit target<input id="monthlyTargetInput" type="number" min="0" step="0.01" placeholder="e.g. 4000" autocomplete="off"></label><div class="form-actions"><button class="primary-button" type="submit">Save defaults <span>✓</span></button></div></form>
+            </article>
+            <article class="panel settings-section" data-settings-section="storage" hidden>
+              <div class="panel-heading"><div><p class="eyebrow">Private backup</p><h2>GitHub storage</h2><p class="muted-copy">Connect one private Gist containing <code>trading-journal.json</code>.</p></div><span class="status-pill muted-status" id="gistConnectionStatus">Not connected</span></div>
+              <div class="notice"><span>i</span><p>Your GitHub token is encrypted with your vault password and stored only on this device. It is never included in journal data, shown after saving, or synced. Your vault password also encrypts the Gist copy across devices.</p></div>
+              <form class="settings-form" id="storageForm"><label>GitHub username<input id="githubUsernameInput" type="text" placeholder="your-github-handle" autocomplete="off"></label><label>GitHub personal access token<input id="githubTokenInput" type="password" placeholder="github_pat_... (stored encrypted)" autocomplete="off"></label><label>Private Gist ID<input id="gistIdInput" type="text" placeholder="Optional — a new private Gist is created if blank"></label><div class="form-actions"><button class="primary-button" type="submit">Save connection <span>✓</span></button><button class="outline-button" id="clearTokenButton" type="button">Clear token</button></div></form>
+              <div class="gist-actions"><div><p class="eyebrow">Manual synchronization</p><p id="gistLastSynced">Last synchronized: never</p></div><div class="form-actions"><button class="outline-button" id="loadGithubButton" type="button">Load from GitHub</button><button class="outline-button" id="saveGithubButton" type="button">Save to GitHub</button><button class="primary-button" id="syncGithubButton" type="button">Sync now <span>↻</span></button></div></div>
+              <div class="local-backup"><p class="eyebrow">Local backup</p><p>Export a copy before moving to another browser, or restore a previously exported journal.</p><div class="form-actions"><button class="outline-button" id="exportDataButton" type="button">Export JSON</button><button class="outline-button" id="importDataButton" type="button">Import JSON</button><input id="importDataInput" type="file" accept="application/json,.json" hidden></div></div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <div class="conflict-screen" id="conflictScreen" role="dialog" aria-modal="true" aria-labelledby="conflictTitle" hidden>
+    <section class="conflict-dialog">
+      <p class="eyebrow">Synchronization paused</p>
+      <h2 id="conflictTitle">Journal conflict detected</h2>
+      <p>Your local and GitHub journal copies both changed. Nothing has been overwritten.</p>
+      <div class="conflict-versions"><div><span>Local</span><strong id="localConflictVersion">Version —</strong><small id="localConflictMeta"></small></div><div><span>Remote</span><strong id="remoteConflictVersion">Version —</strong><small id="remoteConflictMeta"></small></div></div>
+      <div class="conflict-actions"><button class="primary-button" id="keepLocalButton" type="button">Keep Local</button><button class="outline-button" id="keepRemoteButton" type="button">Keep Remote</button><button class="outline-button" id="exportBothButton" type="button">Export Both</button></div>
+    </section>
+  </div>
+  <div class="modal-overlay" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage" hidden>
+    <section class="confirm-dialog">
+      <h2 id="confirmTitle">Confirm action</h2>
+      <p id="confirmMessage"></p>
+      <div class="confirm-actions"><button class="outline-button" id="confirmCancelButton" type="button">Cancel</button><button class="primary-button danger-button" id="confirmAcceptButton" type="button">Confirm</button></div>
+    </section>
+  </div>
+  <div class="modal-overlay" id="promptDialog" role="dialog" aria-modal="true" aria-labelledby="promptTitle" hidden>
+    <section class="confirm-dialog">
+      <h2 id="promptTitle">Rename</h2>
+      <label class="prompt-field" for="promptInput"><span id="promptLabel">Value</span><input id="promptInput" type="text" autocomplete="off"></label>
+      <div class="confirm-actions"><button class="outline-button" id="promptCancelButton" type="button">Cancel</button><button class="primary-button" id="promptAcceptButton" type="button">Save</button></div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
