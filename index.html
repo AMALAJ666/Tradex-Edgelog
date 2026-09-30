@@ -82,6 +82,11 @@
 
         <section class="stat-grid" aria-label="Monthly trading statistics">
           <article class="stat-card accent-green">
+            <p>Account balance</p>
+            <strong id="accountBalanceValue">$0.00</strong>
+            <span id="accountBalanceDetail">Set a starting balance</span>
+          </article>
+          <article class="stat-card">
             <p>Net P&amp;L</p>
             <strong id="totalPnlValue">+$0.00</strong>
             <span id="totalPnlDetail">Across all journals</span>
@@ -143,6 +148,13 @@
             <div class="panel-heading compact-heading"><div><p class="eyebrow">Latest</p><h2>One small reflection</h2></div><span class="status-pill" id="reflectionDate" hidden></span></div>
             <blockquote id="reflectionQuote" class="muted-copy">Your latest reflection will appear here once you save a journal entry.</blockquote>
             <a href="#/journal" class="text-link">Continue writing <span>→</span></a>
+          </article>
+        </section>
+
+        <section class="dashboard-grid bottom-grid">
+          <article class="panel">
+            <div class="panel-heading compact-heading"><div><p class="eyebrow">From your trades</p><h2>Lessons learnt</h2></div></div>
+            <div class="lessons-list" id="lessonsList"></div>
           </article>
         </section>
       </section>
@@ -210,7 +222,7 @@
 
             <article class="panel sidebar-panel">
               <div class="panel-heading"><div><p class="eyebrow">Visual review</p><h2>Trade screenshots</h2></div></div>
-              <div class="screenshot-grid"><label class="screenshot-placeholder" id="beforeScreenshot"><input type="file" accept="image/*" data-screenshot-slot="before"><span>+</span>Before</label><label class="screenshot-placeholder" id="afterScreenshot"><input type="file" accept="image/*" data-screenshot-slot="after"><span>+</span>After</label></div>
+              <div class="screenshot-grid"><div class="screenshot-slot"><label class="screenshot-placeholder" id="beforeScreenshot"><input type="file" accept="image/*" data-screenshot-slot="before"><span>+</span>Before</label><div class="screenshot-tools" id="beforeScreenshotTools" hidden><button class="text-button" type="button" data-view-shot="before">View</button><button class="text-button" type="button" data-replace-shot="before">Replace</button><button class="text-button" type="button" data-remove-shot="before">Remove</button></div></div><div class="screenshot-slot"><label class="screenshot-placeholder" id="afterScreenshot"><input type="file" accept="image/*" data-screenshot-slot="after"><span>+</span>After</label><div class="screenshot-tools" id="afterScreenshotTools" hidden><button class="text-button" type="button" data-view-shot="after">View</button><button class="text-button" type="button" data-replace-shot="after">Replace</button><button class="text-button" type="button" data-remove-shot="after">Remove</button></div></div></div>
             </article>
           </aside>
         </section>
@@ -219,11 +231,15 @@
       <section class="view" id="settingsView" data-view="settings" hidden>
         <div class="page-heading"><div><p class="eyebrow">Preferences</p><h1>Settings</h1><p class="subhead">Shape your journal around how you trade.</p></div></div>
         <section class="settings-layout">
-          <div class="settings-nav" aria-label="Settings sections"><button class="settings-tab active" data-settings-tab="strategies">Strategies</button><button class="settings-tab" data-settings-tab="preferences">Journal defaults</button><button class="settings-tab" data-settings-tab="storage">GitHub storage</button></div>
+          <div class="settings-nav" aria-label="Settings sections"><button class="settings-tab active" data-settings-tab="strategies">Strategies</button><button class="settings-tab" data-settings-tab="presets">Trade presets</button><button class="settings-tab" data-settings-tab="preferences">Journal defaults</button><button class="settings-tab" data-settings-tab="storage">GitHub storage</button></div>
           <div class="settings-content">
             <article class="panel settings-section" data-settings-section="strategies">
               <div class="panel-heading"><div><p class="eyebrow">Your playbook</p><h2>Strategies</h2><p class="muted-copy">Keep the setups you want to measure over time.</p></div><button class="outline-button" id="addStrategyButton" type="button">+ Add strategy</button></div>
               <div class="strategy-table" id="strategyTable"></div>
+            </article>
+            <article class="panel settings-section" data-settings-section="presets" hidden>
+              <div class="panel-heading"><div><p class="eyebrow">Reusable values</p><h2>Trade presets</h2><p class="muted-copy">Save the assets, timeframes and sessions you trade so you pick them instead of retyping them.</p></div></div>
+              <div class="preset-manager" id="presetManager"></div>
             </article>
             <article class="panel settings-section" data-settings-section="preferences" hidden>
               <div class="panel-heading"><div><p class="eyebrow">Your baseline</p><h2>Journal defaults</h2><p class="muted-copy">Set the account context used when reviewing your performance.</p></div></div>
@@ -235,6 +251,7 @@
               <form class="settings-form" id="storageForm"><label>GitHub username<input id="githubUsernameInput" type="text" placeholder="your-github-handle" autocomplete="off"></label><label>GitHub personal access token<input id="githubTokenInput" type="password" placeholder="github_pat_... (stored encrypted)" autocomplete="off"></label><label>Private Gist ID<input id="gistIdInput" type="text" placeholder="Optional — a new private Gist is created if blank"></label><div class="form-actions"><button class="primary-button" type="submit">Save connection <span>✓</span></button><button class="outline-button" id="clearTokenButton" type="button">Clear token</button></div></form>
               <div class="gist-actions"><div><p class="eyebrow">Manual synchronization</p><p id="gistLastSynced">Last synchronized: never</p></div><div class="form-actions"><button class="outline-button" id="loadGithubButton" type="button">Load from GitHub</button><button class="outline-button" id="saveGithubButton" type="button">Save to GitHub</button><button class="primary-button" id="syncGithubButton" type="button">Sync now <span>↻</span></button></div></div>
               <div class="local-backup"><p class="eyebrow">Local backup</p><p>Export a copy before moving to another browser, or restore a previously exported journal. Exports include your screenshots; the Gist sync does not.</p><p class="muted-copy" id="storageUsage">Checking local storage usage...</p><div class="form-actions"><button class="outline-button" id="exportDataButton" type="button">Export JSON</button><button class="outline-button" id="importDataButton" type="button">Import JSON</button><input id="importDataInput" type="file" accept="application/json,.json" hidden></div></div>
+              <div class="danger-zone"><p class="eyebrow">Danger zone</p><p>Resetting deletes every journal entry, trade and screenshot on this device. Your strategies, trade presets, journal defaults, vault password and GitHub connection are kept. This cannot be undone, so export a backup first.</p><button class="primary-button danger-button" id="resetJournalButton" type="button">Reset journal</button></div>
             </article>
           </div>
         </section>
@@ -263,6 +280,12 @@
       <label class="prompt-field" for="promptInput"><span id="promptLabel">Value</span><input id="promptInput" type="text" autocomplete="off"></label>
       <div class="confirm-actions"><button class="outline-button" id="promptCancelButton" type="button">Cancel</button><button class="primary-button" id="promptAcceptButton" type="button">Save</button></div>
     </section>
+  </div>
+  <div class="modal-overlay image-overlay" id="imageDialog" role="dialog" aria-modal="true" aria-label="Screenshot preview" hidden>
+    <div class="image-viewer">
+      <div class="image-viewer-bar"><span id="imageDialogLabel">Screenshot</span><button class="outline-button" id="imageCloseButton" type="button">Close</button></div>
+      <img id="imageDialogImage" alt="Enlarged trade screenshot">
+    </div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>

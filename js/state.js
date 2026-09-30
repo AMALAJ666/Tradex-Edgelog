@@ -64,6 +64,19 @@
     if (!Number.isInteger(migrated.dataVersion) || migrated.dataVersion < 1) migrated.dataVersion = 1;
     if (typeof migrated.updatedAt !== 'string' || Number.isNaN(Date.parse(migrated.updatedAt))) migrated.updatedAt = now();
     if (typeof migrated.deviceId !== 'string' || !migrated.deviceId) migrated.deviceId = DEVICE_ID;
+    migrated.presets = createDefaultPresets(isRecord(migrated.presets) ? migrated.presets : {});
+    if (Array.isArray(migrated.journals)) {
+      migrated.journals.forEach((journal) => {
+        if (!isRecord(journal) || !Array.isArray(journal.trades)) return;
+        journal.trades.forEach((trade) => {
+          if (!isRecord(trade)) return;
+          if (typeof trade.leverage !== 'number' || !Number.isFinite(trade.leverage)) trade.leverage = Number(trade.leverage) || 0;
+          ['whyTaken', 'whatWentRight', 'whatWentWrong', 'whatILearned'].forEach((field) => {
+            if (typeof trade[field] !== 'string') trade[field] = '';
+          });
+        });
+      });
+    }
     return migrated;
   }
 
@@ -114,8 +127,13 @@
       takeProfit: 0,
       riskPercent: 0,
       positionSize: 0,
+      leverage: 0,
       pnl: 0,
       result: 'breakeven',
+      whyTaken: '',
+      whatWentRight: '',
+      whatWentWrong: '',
+      whatILearned: '',
       ...clone(values),
       id: values.id || makeId('trade')
     };
@@ -135,8 +153,18 @@
     };
   }
 
+  const PRESET_KINDS = ['assets', 'timeframes', 'sessions'];
+
+  function createDefaultPresets(values = {}) {
+    return PRESET_KINDS.reduce((presets, kind) => {
+      const list = Array.isArray(values[kind]) ? values[kind] : [];
+      presets[kind] = [...new Set(list.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))];
+      return presets;
+    }, {});
+  }
+
   function seedState() {
-    return { schemaVersion: SCHEMA_VERSION, dataVersion: 1, updatedAt: now(), deviceId: DEVICE_ID, strategies: [], journals: [] };
+    return { schemaVersion: SCHEMA_VERSION, dataVersion: 1, updatedAt: now(), deviceId: DEVICE_ID, strategies: [], journals: [], presets: createDefaultPresets() };
   }
 
   function loadState() {
@@ -182,9 +210,10 @@
   }
 
   function importData(document) {
-    validateDocument(document);
+    const migrated = migrateLegacyDocument(document);
+    validateDocument(migrated);
     const previousState = state;
-    state = clone(document);
+    state = clone(migrated);
     try {
       commit({ localChange: false });
     } catch (error) {
@@ -313,6 +342,39 @@
     return () => listeners.delete(listener);
   }
 
+  function assertPresetKind(kind) {
+    if (!PRESET_KINDS.includes(kind)) throw new Error(`Unknown preset list "${kind}".`);
+  }
+
+  function addPreset(kind, value) {
+    assertPresetKind(kind);
+    const trimmed = String(value ?? '').trim();
+    if (!trimmed) throw new Error('A preset value cannot be empty.');
+    if (!state.presets) state.presets = createDefaultPresets();
+    const existing = state.presets[kind].find((item) => item.toLowerCase() === trimmed.toLowerCase());
+    if (existing) return existing;
+    state.presets[kind] = [...state.presets[kind], trimmed].sort((first, second) => first.localeCompare(second));
+    commit();
+    return trimmed;
+  }
+
+  function removePreset(kind, value) {
+    assertPresetKind(kind);
+    if (!state.presets) state.presets = createDefaultPresets();
+    const next = state.presets[kind].filter((item) => item !== value);
+    if (next.length === state.presets[kind].length) return false;
+    state.presets[kind] = next;
+    commit();
+    return true;
+  }
+
+  // Clears journal entries only; strategies, presets and preferences survive.
+  function resetJournals() {
+    state.journals = [];
+    commit();
+    return getState();
+  }
+
   window.JournalStore = Object.freeze({
     getState,
     exportData,
@@ -330,6 +392,10 @@
     createStrategy,
     updateStrategy,
     deleteStrategy,
+    addPreset,
+    removePreset,
+    resetJournals,
+    presetKinds: PRESET_KINDS,
     subscribe
   });
 })();

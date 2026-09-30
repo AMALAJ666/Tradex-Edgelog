@@ -119,6 +119,34 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .lock-error[hidden] { display: none; }
 .lock-button { display: block; width: 100%; margin-top: 14px; padding: 9px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .lock-button:hover { color: var(--ink); border-color: var(--line-light); background: #20241f; }
+.trade-analysis { margin-top: 10px; color: var(--muted); font-size: 10px; }
+.trade-analysis summary { cursor: pointer; }
+.trade-analysis-fields { display: grid; gap: 12px; margin-top: 12px; }
+.trade-analysis-fields label { display: grid; gap: 6px; color: #bbc1b9; font-size: 11px; font-weight: 700; }
+.trade-analysis-fields textarea { width: 100%; min-height: 56px; resize: vertical; padding: 9px 10px; color: #b9beb9; background: #1d211d; border: 1px solid #30362f; border-radius: 4px; font-size: 11px; line-height: 1.5; outline: none; }
+.trade-analysis-fields textarea:focus { border-color: #719e78; }
+.trade-analysis-fields textarea::placeholder { color: #626a62; }
+.screenshot-slot { display: grid; gap: 6px; }
+.screenshot-tools { display: flex; justify-content: space-between; gap: 4px; }
+.screenshot-tools[hidden] { display: none; }
+.screenshot-tools .text-button { padding: 2px 4px; font-family: 'DM Mono', monospace; font-size: 9px; }
+.image-overlay { padding: 24px; }
+.image-viewer { display: grid; gap: 12px; width: fit-content; min-width: min(320px, 90vw); max-width: min(92vw, 1100px); padding: 16px; background: var(--surface-raised); border: 1px solid var(--line-light); border-radius: var(--radius); box-shadow: 0 20px 50px #0009; }
+.image-viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; }
+.image-viewer img { justify-self: center; max-width: 100%; max-height: 78vh; border: 1px solid var(--line); border-radius: 4px; background: #141714; object-fit: contain; }
+.preset-manager { display: grid; gap: 16px; }
+.preset-group { display: grid; gap: 8px; }
+.preset-group h3 { margin: 0; font-size: 12px; }
+.preset-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; color: #a8d9ab; background: #233b29; border-radius: 3px; font-family: 'DM Mono', monospace; font-size: 9px; }
+.preset-chip button { padding: 0; color: inherit; background: none; border: 0; cursor: pointer; font-size: 11px; line-height: 1; }
+.preset-chip button:hover { color: var(--red); }
+.danger-zone { margin-top: 20px; padding: 14px; border: 1px solid #5c3232; border-radius: 5px; background: #2a1f1f; }
+.danger-zone p { margin: 0 0 10px; color: #c7a8a8; font-size: 11px; line-height: 1.5; }
+.lessons-list { display: grid; gap: 12px; }
+.lesson-item { display: grid; gap: 4px; padding-left: 10px; border-left: 2px solid #3d5c45; }
+.lesson-item p { margin: 0; color: #c2c8c0; font-size: 11px; line-height: 1.5; }
+.lesson-meta { color: var(--subtle); font-family: 'DM Mono', monospace; font-size: 9px; }
 
 @media (max-width: 1120px) { .top-grid, .bottom-grid { grid-template-columns: 1fr; }.performance-panel { min-height: 310px; }.journal-layout { grid-template-columns: 1fr; }.journal-sidebar { grid-template-columns: repeat(3, 1fr); }.sidebar-panel { height: 100%; } }
 @media (max-width: 850px) { .sidebar { display: none; }.main-content { width: 100%; margin-left: 0; padding: 0 20px 50px; }.mobile-header { display: flex; align-items: center; justify-content: space-between; height: 68px; margin-bottom: 25px; }.sidebar.open { display: flex; width: 240px; box-shadow: 16px 0 35px #0008; }.stat-grid { grid-template-columns: repeat(2, 1fr); }.settings-layout { grid-template-columns: 1fr; gap: 22px; }.settings-nav { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line); }.settings-tab { white-space: nowrap; border-left: 0; border-bottom: 2px solid transparent; }.settings-tab:hover, .settings-tab.active { border-left-color: transparent; border-bottom-color: var(--green); }.journal-sidebar { grid-template-columns: 1fr 1fr; }.journal-sidebar > :last-child { grid-column: 1 / -1; } }

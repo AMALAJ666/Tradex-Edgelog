@@ -7,7 +7,7 @@ let saveStatus = 'saved';
 let syncConflict = null;
 const screenshotUrls = { before: '', after: '' };
 
-const numericTradeFields = new Set(['entry', 'stopLoss', 'takeProfit', 'riskPercent', 'positionSize', 'pnl']);
+const numericTradeFields = new Set(['entry', 'stopLoss', 'takeProfit', 'riskPercent', 'positionSize', 'leverage', 'pnl']);
 let pnlChart;
 let strategyChart;
 
@@ -103,6 +103,17 @@ function deriveAnalytics() {
     return { date, pnl: runningPnl };
   });
 
+  const lessons = trades
+    .filter((trade) => String(trade.whatILearned || '').trim())
+    .map((trade) => ({
+      date: trade.date,
+      asset: trade.asset,
+      strategyName: strategyMap.get(trade.strategyId)?.name || 'Unassigned',
+      pnl: trade.pnl,
+      lesson: String(trade.whatILearned).trim()
+    }))
+    .sort((first, second) => second.date.localeCompare(first.date));
+
   return {
     totalPnl,
     totalTrades: trades.length,
@@ -113,8 +124,39 @@ function deriveAnalytics() {
     averagePnl: trades.length ? totalPnl / trades.length : 0,
     averageRiskReward: riskRewards.length ? riskRewards.reduce((total, value) => total + value, 0) / riskRewards.length : null,
     cumulative,
+    lessons,
     strategies: [...byStrategy.values()].map((strategy) => ({ ...strategy, winRate: strategy.count ? strategy.wins / strategy.count : 0 }))
   };
+}
+
+function renderLessons(analytics) {
+  const list = document.getElementById('lessonsList');
+  if (!list) return;
+  const lessons = analytics.lessons.slice(0, 6);
+  if (!lessons.length) {
+    list.innerHTML = '<p class="muted-copy">Fill in "What I learned" on a trade and your lessons will collect here.</p>';
+    return;
+  }
+  list.innerHTML = lessons.map((lesson) => {
+    const when = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(`${lesson.date}T00:00:00`));
+    const asset = lesson.asset ? ` · ${escapeHtml(lesson.asset)}` : '';
+    return `<div class="lesson-item"><p>${escapeHtml(lesson.lesson)}</p><span class="lesson-meta">${when}${asset} · ${escapeHtml(lesson.strategyName)} · ${formatPnl(lesson.pnl)}</span></div>`;
+  }).join('');
+}
+
+function renderAccountBalance(analytics) {
+  const value = document.getElementById('accountBalanceValue');
+  const detail = document.getElementById('accountBalanceDetail');
+  if (!value || !detail) return;
+  const startingBalance = Number(preferences.startingBalance);
+  const hasStartingBalance = preferences.startingBalance !== '' && Number.isFinite(startingBalance);
+  const balance = (hasStartingBalance ? startingBalance : 0) + analytics.totalPnl;
+  value.textContent = `${currencySymbol()}${balance.toFixed(2)}`;
+  value.classList.toggle('positive', hasStartingBalance && balance > startingBalance);
+  value.classList.toggle('negative', hasStartingBalance && balance < startingBalance);
+  detail.textContent = hasStartingBalance
+    ? `Started at ${currencySymbol()}${startingBalance.toFixed(2)} · ${formatPnl(analytics.totalPnl)}`
+    : 'Set a starting balance in Journal defaults';
 }
 
 function renderAnalytics() {
@@ -131,6 +173,8 @@ function renderAnalytics() {
   document.getElementById('averagePnlValue').textContent = formatPnl(analytics.averagePnl);
   document.getElementById('averageRrDetail').textContent = analytics.averageRiskReward === null ? 'Avg R:R —' : `Avg R:R 1:${analytics.averageRiskReward.toFixed(2)}`;
   document.getElementById('cumulativePnlValue').textContent = formatPnl(analytics.totalPnl);
+  renderAccountBalance(analytics);
+  renderLessons(analytics);
 
   document.getElementById('strategyAnalyticsList').innerHTML = analytics.strategies.map((strategy) => `
     <div><span><i class="strategy-color ${strategy.color}"></i>${escapeHtml(strategy.name)} <small>${strategy.count} trades · ${(strategy.winRate * 100).toFixed(0)}% win</small></span><b class="${strategy.pnl < 0 ? 'negative' : strategy.pnl > 0 ? 'positive' : ''}">${formatPnl(strategy.pnl)}</b></div>
@@ -318,7 +362,7 @@ function renderCalendar() {
     cells.push(`
       <button class="calendar-day ${activity.count ? 'trade-day' : ''} ${isToday ? 'today' : ''}" type="button" data-date="${dateKey}" aria-label="${dateKey}, ${activity.count} trades, ${formatPnl(activity.pnl)}">
         ${day}
-        <span class="count ${activity.count ? '' : 'neutral'}">${activity.count}</span><span class="day-pnl ${pnlClass}">${formatPnl(activity.pnl)}</span>
+        ${activity.count ? `<span class="count">${activity.count}</span>` : ''}<span class="day-pnl ${pnlClass}">${activity.count ? formatPnl(activity.pnl) : ''}</span>
       </button>
     `);
   }
@@ -338,10 +382,20 @@ function openJournal(date) {
   else location.hash = route;
 }
 
+const PRESET_ADD_VALUE = '__add_preset__';
+
+// Builds a select from the saved preset list, always keeping the trade's current value selectable.
+function presetSelect(field, kind, value, presets, required) {
+  const saved = presets?.[kind] || [];
+  const current = String(value ?? '').trim();
+  const options = current && !saved.includes(current) ? [current, ...saved] : saved;
+  const rendered = options.map((item) => `<option value="${escapeHtml(item)}" ${item === current ? 'selected' : ''}>${escapeHtml(item)}</option>`).join('');
+  return `<select data-trade-field="${field}" data-preset-kind="${kind}" ${required ? 'required' : ''}><option value="" ${current ? '' : 'selected'}>Select</option>${rendered}<option value="${PRESET_ADD_VALUE}">+ Add new...</option></select>`;
+}
+
 function renderTrades() {
   const list = document.getElementById('tradeList');
   const state = JournalStore.getState();
-  const strategyNames = new Map(state.strategies.map((strategy) => [strategy.id, strategy.name]));
   const strategyOptions = [`<option value="">Select strategy</option>`, ...state.strategies.map((strategy) => `<option value="${strategy.id}">${escapeHtml(strategy.name)}</option>`)].join('');
   if (!journalDraft.trades.length) {
     list.innerHTML = '<p class="empty-trades">No trades yet. Add only the trades worth reviewing.</p>';
@@ -351,7 +405,7 @@ function renderTrades() {
     <article class="trade-editor" data-trade-id="${trade.id}">
       <div class="trade-editor-heading"><b>Trade ${index + 1}</b><button class="text-button delete-trade" type="button" data-delete-trade="${trade.id}">Delete</button></div>
       <div class="trade-fields">
-        <label>Asset<input data-trade-field="asset" value="${escapeHtml(trade.asset)}" placeholder="NVDA" required></label>
+        <label>Asset${presetSelect('asset', 'assets', trade.asset, state.presets, true)}</label>
         <label>Direction<select data-trade-field="direction" required><option value="long" ${trade.direction === 'long' ? 'selected' : ''}>Long</option><option value="short" ${trade.direction === 'short' ? 'selected' : ''}>Short</option></select></label>
         <label>Strategy<select data-trade-field="strategyId" required>${strategyOptions.replace(`value="${trade.strategyId}"`, `value="${trade.strategyId}" selected`)}</select></label>
         <label>Entry<input data-trade-field="entry" type="number" step="any" value="${escapeHtml(trade.entry)}" required></label>
@@ -359,7 +413,8 @@ function renderTrades() {
         <label>Take profit<input data-trade-field="takeProfit" type="number" step="any" value="${escapeHtml(trade.takeProfit)}" required></label>
         <label>P&amp;L<input data-trade-field="pnl" type="number" step="any" value="${escapeHtml(trade.pnl)}" required></label>
       </div>
-      <details class="trade-optional"><summary>Optional context</summary><div class="trade-fields optional-fields"><label>Timeframe<input data-trade-field="timeframe" value="${escapeHtml(trade.timeframe)}" placeholder="5m"></label><label>Session<input data-trade-field="session" value="${escapeHtml(trade.session)}" placeholder="New York open"></label><label>HTF bias<select data-trade-field="htfBias"><option value="bullish" ${trade.htfBias === 'bullish' ? 'selected' : ''}>Bullish</option><option value="neutral" ${trade.htfBias === 'neutral' ? 'selected' : ''}>Neutral</option><option value="bearish" ${trade.htfBias === 'bearish' ? 'selected' : ''}>Bearish</option></select></label><label>Risk %<input data-trade-field="riskPercent" type="number" step="any" value="${escapeHtml(trade.riskPercent)}"></label><label>Position size<input data-trade-field="positionSize" type="number" step="any" value="${escapeHtml(trade.positionSize)}"></label></div></details>
+      <details class="trade-optional"><summary>Optional context</summary><div class="trade-fields optional-fields"><label>Timeframe${presetSelect('timeframe', 'timeframes', trade.timeframe, state.presets, false)}</label><label>Session${presetSelect('session', 'sessions', trade.session, state.presets, false)}</label><label>HTF bias<select data-trade-field="htfBias"><option value="bullish" ${trade.htfBias === 'bullish' ? 'selected' : ''}>Bullish</option><option value="neutral" ${trade.htfBias === 'neutral' ? 'selected' : ''}>Neutral</option><option value="bearish" ${trade.htfBias === 'bearish' ? 'selected' : ''}>Bearish</option></select></label><label>Risk %<input data-trade-field="riskPercent" type="number" step="any" value="${escapeHtml(trade.riskPercent)}"></label><label>Position size<input data-trade-field="positionSize" type="number" step="any" value="${escapeHtml(trade.positionSize)}"></label><label>Leverage<input data-trade-field="leverage" type="number" step="any" min="0" value="${escapeHtml(trade.leverage)}" placeholder="10"></label></div></details>
+      <details class="trade-analysis"><summary>Trade analysis</summary><div class="trade-analysis-fields"><label>Why I took it<textarea data-trade-field="whyTaken" placeholder="What made this setup worth risking money on?">${escapeHtml(trade.whyTaken)}</textarea></label><label>What went right<textarea data-trade-field="whatWentRight" placeholder="Name the execution worth repeating...">${escapeHtml(trade.whatWentRight)}</textarea></label><label>What went wrong<textarea data-trade-field="whatWentWrong" placeholder="Where did the plan and the execution split?">${escapeHtml(trade.whatWentWrong)}</textarea></label><label>What I learned<textarea data-trade-field="whatILearned" placeholder="One lesson you want on the dashboard...">${escapeHtml(trade.whatILearned)}</textarea></label></div></details>
     </article>
   `).join('');
 }
@@ -385,7 +440,73 @@ async function renderScreenshots() {
     }
     element.classList.toggle('has-image', Boolean(source));
     element.style.backgroundImage = source ? `url("${source}")` : '';
+    const tools = document.getElementById(`${slot}ScreenshotTools`);
+    if (tools) tools.hidden = !source;
   }));
+}
+
+function openImageViewer(slot) {
+  const source = screenshotUrls[slot] || (ScreenshotStore.isLegacyDataUrl(journalDraft.screenshots[slot]) ? journalDraft.screenshots[slot] : '');
+  if (!source) return;
+  const overlay = document.getElementById('imageDialog');
+  const image = document.getElementById('imageDialogImage');
+  const closeButton = document.getElementById('imageCloseButton');
+  const previousFocus = document.activeElement;
+  document.getElementById('imageDialogLabel').textContent = slot === 'before' ? 'Before screenshot' : 'After screenshot';
+  image.src = source;
+  overlay.hidden = false;
+  closeButton.focus();
+
+  function close() {
+    overlay.hidden = true;
+    image.removeAttribute('src');
+    closeButton.removeEventListener('click', close);
+    overlay.removeEventListener('click', onOverlayClick);
+    document.removeEventListener('keydown', onKeydown);
+    if (previousFocus instanceof HTMLElement) previousFocus.focus();
+  }
+  function onOverlayClick(event) {
+    if (event.target === overlay) close();
+  }
+  function onKeydown(event) {
+    if (event.key === 'Escape') close();
+  }
+  closeButton.addEventListener('click', close);
+  overlay.addEventListener('click', onOverlayClick);
+  document.addEventListener('keydown', onKeydown);
+}
+
+async function removeScreenshot(slot) {
+  const value = journalDraft.screenshots[slot];
+  if (!value) return;
+  const confirmed = await openConfirmDialog({ title: 'Remove this screenshot?', message: 'The image will be deleted from this device. Your journal text is not affected.', confirmLabel: 'Remove screenshot', danger: true });
+  if (!confirmed) return;
+  if (ScreenshotStore.isReference(value)) await ScreenshotStore.remove(value).catch(() => null);
+  journalDraft.screenshots[slot] = '';
+  markJournalDirty();
+  renderJournalFields();
+  renderStorageUsage();
+  showToast('Screenshot removed.');
+}
+
+function setupScreenshotTools() {
+  document.querySelectorAll('.screenshot-placeholder').forEach((label) => {
+    label.addEventListener('click', (event) => {
+      if (!label.classList.contains('has-image')) return;
+      event.preventDefault();
+      openImageViewer(label.id.replace('Screenshot', ''));
+    });
+  });
+  document.querySelectorAll('.screenshot-tools').forEach((tools) => {
+    tools.addEventListener('click', (event) => {
+      const view = event.target.closest('[data-view-shot]')?.dataset.viewShot;
+      const replace = event.target.closest('[data-replace-shot]')?.dataset.replaceShot;
+      const remove = event.target.closest('[data-remove-shot]')?.dataset.removeShot;
+      if (view) openImageViewer(view);
+      else if (replace) document.querySelector(`[data-screenshot-slot="${replace}"]`).click();
+      else if (remove) removeScreenshot(remove);
+    });
+  });
 }
 
 function renderJournalFields() {
@@ -428,7 +549,8 @@ function createDraftTrade() {
   return {
     id: `trade-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     asset: '', direction: 'long', strategyId: '', timeframe: '', session: '', htfBias: 'neutral',
-    entry: '', stopLoss: '', takeProfit: '', riskPercent: '', positionSize: '', pnl: '', result: 'breakeven'
+    entry: '', stopLoss: '', takeProfit: '', riskPercent: '', positionSize: '', leverage: '', pnl: '', result: 'breakeven',
+    whyTaken: '', whatWentRight: '', whatWentWrong: '', whatILearned: ''
   };
 }
 
@@ -481,12 +603,34 @@ async function saveJournalDraft() {
   }
 }
 
+async function addTradePreset(target, trade, field) {
+  const kind = target.dataset.presetKind;
+  const previous = trade[field];
+  target.value = previous;
+  const label = { assets: 'Asset', timeframes: 'Timeframe', sessions: 'Session' }[kind] || 'Value';
+  const entered = await openPromptDialog({ title: `Add ${label.toLowerCase()}`, label, value: '', confirmLabel: 'Add' });
+  if (entered === null) return;
+  try {
+    const saved = JournalStore.addPreset(kind, entered);
+    trade[field] = saved;
+    markJournalDirty();
+    renderTrades();
+    showToast(`"${saved}" was added to your ${label.toLowerCase()} list.`);
+  } catch (error) {
+    showToast(error.message || 'That value could not be saved.', 'error');
+  }
+}
+
 function updateJournalDraft(event) {
   const target = event.target;
   const tradeField = target.dataset.tradeField;
   if (tradeField) {
     const trade = journalDraft.trades.find((item) => item.id === target.closest('[data-trade-id]').dataset.tradeId);
     if (trade) {
+      if (target.value === PRESET_ADD_VALUE) {
+        addTradePreset(target, trade, tradeField);
+        return;
+      }
       trade[tradeField] = target.value;
       markJournalDirty();
       renderDailySummary();
@@ -823,6 +967,7 @@ function renderStrategies() {
       <span>${escapeHtml(strategy.description) || 'No description'}</span>
       <div class="strategy-actions">
         <button type="button" class="text-button" data-strategy-rename="${escapeHtml(strategy.id)}" aria-label="Rename ${escapeHtml(strategy.name)}">Rename</button>
+        <button type="button" class="text-button" data-strategy-describe="${escapeHtml(strategy.id)}" aria-label="Edit description for ${escapeHtml(strategy.name)}">Describe</button>
         <button type="button" class="text-button" data-strategy-delete="${escapeHtml(strategy.id)}" aria-label="Delete ${escapeHtml(strategy.name)}">Delete</button>
       </div>
     </div>
@@ -942,6 +1087,92 @@ async function setupLocalStorageLayer() {
     // Image storage is optional; the journal stays usable without it.
   }
   renderStorageUsage();
+}
+
+const PRESET_GROUPS = [
+  { kind: 'assets', title: 'Assets', label: 'Asset' },
+  { kind: 'timeframes', title: 'Timeframes', label: 'Timeframe' },
+  { kind: 'sessions', title: 'Sessions', label: 'Session' }
+];
+
+function renderPresetManager() {
+  const container = document.getElementById('presetManager');
+  if (!container) return;
+  const presets = JournalStore.getState().presets || {};
+  container.innerHTML = PRESET_GROUPS.map((group) => {
+    const values = presets[group.kind] || [];
+    const chips = values.length
+      ? values.map((value) => `<span class="preset-chip">${escapeHtml(value)}<button type="button" data-remove-preset="${group.kind}" data-preset-value="${escapeHtml(value)}" aria-label="Remove ${escapeHtml(value)}">×</button></span>`).join('')
+      : '<span class="muted-copy">Nothing saved yet.</span>';
+    return `<div class="preset-group"><h3>${group.title}</h3><div class="preset-chips">${chips}</div><button class="outline-button" type="button" data-add-preset="${group.kind}">+ Add ${group.label.toLowerCase()}</button></div>`;
+  }).join('');
+}
+
+function setupPresetManager() {
+  const container = document.getElementById('presetManager');
+  if (!container) return;
+  container.addEventListener('click', async (event) => {
+    const addKind = event.target.closest('[data-add-preset]')?.dataset.addPreset;
+    const removeButton = event.target.closest('[data-remove-preset]');
+    if (addKind) {
+      const group = PRESET_GROUPS.find((item) => item.kind === addKind);
+      const entered = await openPromptDialog({ title: `Add ${group.label.toLowerCase()}`, label: group.label, value: '', confirmLabel: 'Add' });
+      if (entered === null) return;
+      try {
+        JournalStore.addPreset(addKind, entered);
+        showToast(`${group.label} saved.`);
+      } catch (error) {
+        showToast(error.message || 'That value could not be saved.', 'error');
+      }
+      return;
+    }
+    if (removeButton) {
+      const kind = removeButton.dataset.removePreset;
+      const value = removeButton.dataset.presetValue;
+      const confirmed = await openConfirmDialog({ title: 'Remove this preset?', message: `"${value}" will no longer be offered when logging trades. Existing trades keep their value.`, confirmLabel: 'Remove', danger: true });
+      if (!confirmed) return;
+      JournalStore.removePreset(kind, value);
+      showToast('Preset removed.', 'info');
+    }
+  });
+}
+
+async function resetJournal() {
+  const confirmed = await openConfirmDialog({
+    title: 'Reset the whole journal?',
+    message: 'Every journal entry, trade and screenshot on this device will be deleted. Strategies, presets and your GitHub connection are kept. This cannot be undone.',
+    confirmLabel: 'Continue',
+    danger: true
+  });
+  if (!confirmed) return;
+  const typed = await openPromptDialog({ title: 'Type RESET to confirm', label: 'Confirmation', value: '', confirmLabel: 'Reset journal' });
+  if (typed === null) return;
+  if (typed.trim().toUpperCase() !== 'RESET') {
+    showToast('Reset cancelled because the confirmation did not match.', 'error');
+    return;
+  }
+  const wantsBackup = await openConfirmDialog({
+    title: 'Download a backup first?',
+    message: 'This exports your journal and screenshots before anything is deleted.',
+    confirmLabel: 'Export backup'
+  });
+  if (wantsBackup) await exportJournalData();
+  try {
+    JournalStore.resetJournals();
+    await ScreenshotStore.clear().catch(() => null);
+    journalDraft = null;
+    const today = new Date();
+    activeJournalDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    loadJournalDraft();
+    setRoute();
+    renderCalendar();
+    renderAnalytics();
+    renderReflection();
+    renderStorageUsage();
+    showToast('Journal reset. The next GitHub sync will report a conflict, which is expected.', 'info');
+  } catch (error) {
+    showToast(error.message || 'The journal could not be reset.', 'error');
+  }
 }
 
 function vaultErrorMessage(error) {
@@ -1067,6 +1298,7 @@ function setupInteractions() {
   });
   document.getElementById('strategyTable').addEventListener('click', async (event) => {
     const renameId = event.target.closest('[data-strategy-rename]')?.dataset.strategyRename;
+    const describeId = event.target.closest('[data-strategy-describe]')?.dataset.strategyDescribe;
     const deleteId = event.target.closest('[data-strategy-delete]')?.dataset.strategyDelete;
     if (renameId) {
       const strategy = JournalStore.getState().strategies.find((item) => item.id === renameId);
@@ -1080,6 +1312,13 @@ function setupInteractions() {
       }
       JournalStore.updateStrategy(renameId, { name: trimmed });
       showToast('Strategy renamed.');
+    } else if (describeId) {
+      const strategy = JournalStore.getState().strategies.find((item) => item.id === describeId);
+      if (!strategy) return;
+      const description = await openPromptDialog({ title: 'Strategy description', label: 'Describe this setup', value: strategy.description, confirmLabel: 'Save description' });
+      if (description === null) return;
+      JournalStore.updateStrategy(describeId, { description: description.trim() });
+      showToast('Strategy description saved.');
     } else if (deleteId) {
       const strategy = JournalStore.getState().strategies.find((item) => item.id === deleteId);
       if (!strategy) return;
@@ -1095,6 +1334,7 @@ function setupInteractions() {
     }
   });
   document.getElementById('exportDataButton').addEventListener('click', exportJournalData);
+  document.getElementById('resetJournalButton').addEventListener('click', resetJournal);
   document.getElementById('importDataButton').addEventListener('click', () => document.getElementById('importDataInput').click());
   document.getElementById('importDataInput').addEventListener('change', importJournalData);
   document.getElementById('preferencesForm').addEventListener('submit', (event) => {
@@ -1177,6 +1417,7 @@ function setupInteractions() {
 document.addEventListener('DOMContentLoaded', () => {
   renderCalendar();
   renderStrategies();
+  renderPresetManager();
   renderGreeting();
   renderReflection();
   renderPreferences();
@@ -1185,6 +1426,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAnalytics();
   setupInteractions();
   setupVaultGate();
+  setupScreenshotTools();
+  setupPresetManager();
   setupLocalStorageLayer();
   renderGistStatus();
   JournalStore.subscribe(() => {
@@ -1194,6 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderJournalFields();
     renderDailySummary();
     renderStrategies();
+    renderPresetManager();
     renderReflection();
     renderGistStatus();
   });

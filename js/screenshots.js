@@ -109,6 +109,10 @@
     return (await run('readonly', (store) => requestValue(store.getAll()))) || [];
   }
 
+  async function clear() {
+    await run('readwrite', (store) => store.clear());
+  }
+
   // Deletes stored images no longer referenced by any journal.
   async function pruneOrphans(journals) {
     const referenced = new Set();
@@ -166,6 +170,7 @@
     get,
     remove,
     list,
+    clear,
     pruneOrphans,
     estimate,
     requestPersistence,
